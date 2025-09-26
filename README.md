@@ -8,14 +8,14 @@ Includes two tools: Python REPL and DuckDuckGo search.
 ---
 
 ## Project Structure
-
+```text
 .
 ├── app.py # Streamlit chat UI with LangChain agent
 ├── requirements.txt # Python dependencies
 ├── Dockerfile # App container build
 ├── docker-compose.yml # Multi-service stack (Ollama + App)
 └── README.md # This file
-
+```
 ---
 
 ## Prerequisites
