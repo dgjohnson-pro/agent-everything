@@ -1,0 +1,38 @@
+version: "3.9"
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports: ["11434:11434"]
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull ${MODEL:-llama3.2:latest}"]
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: "no"
+
+  app:
+    build: .
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - MODEL=${MODEL:-llama3.2:latest}
+      - SYSTEM_PROMPT=You are a precise reasoning agent. Explain steps and prefer tool calls over guessing.
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
+    ports: ["8501:8501"]
+
+volumes:
+  ollama_models:
