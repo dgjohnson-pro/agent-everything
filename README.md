@@ -37,11 +37,9 @@ The first run will automatically pull llama3.2:latest into a shared Docker volum
 ## Configuration
 - Change the model by setting MODEL:
   ```bash
-  Copy code
   MODEL=llama3.2:3b-instruct docker compose up --build
 - Override the system prompt with:
   ```bash
-  Copy code
   SYSTEM_PROMPT="Answer only in JSON." docker compose up
 ---
 ## Notes
