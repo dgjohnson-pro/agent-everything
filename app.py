@@ -1,11 +1,13 @@
+# app.py
 import os
 import streamlit as st
 
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain_community.chat_models import ChatOllama
+from langchain_ollama.chat_models import ChatOllama 
+from langchain.agents import create_agent
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+
+from langchain_experimental.tools import PythonREPLTool
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain.tools import PythonREPLTool
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 MODEL = os.getenv("MODEL", "llama3.2:latest")
 SYSTEM = os.getenv(
@@ -15,40 +17,47 @@ SYSTEM = os.getenv(
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://ollama:11434")
 
 st.set_page_config(page_title="Agent Chat")
-st.title("Agent Chat (Streamlit + LangChain + Ollama)")
+st.title("Agent Chat (Streamlit + LangChain v1 + Ollama)")
 
-# Build once per session
-if "executor" not in st.session_state:
+def build_agent():
     llm = ChatOllama(model=MODEL, temperature=0, base_url=OLLAMA_URL)
+    tools = [PythonREPLTool(), DuckDuckGoSearchRun()]
+    # In v1, prompt can be a plain system string or SystemMessage
+    agent = create_agent(model=llm, tools=tools, prompt=SYSTEM)
+    return agent
 
-    tools = [
-        PythonREPLTool(),
-        DuckDuckGoSearchRun(),
-    ]
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", SYSTEM),
-        ("human", "{input}"),
-        MessagesPlaceholder("agent_scratchpad"),
-    ])
-
-    agent = create_react_agent(llm, tools, prompt)
-    st.session_state.executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-    st.session_state.history = []  # simple display history only
+if "agent" not in st.session_state:
+    st.session_state.agent = build_agent()
+    st.session_state.messages = [SystemMessage(content=SYSTEM)]  # full chat state
 
 # Render history
-for role, content in st.session_state.history:
-    with st.chat_message(role):
-        st.markdown(content)
+for m in st.session_state.messages:
+    if isinstance(m, HumanMessage):
+        with st.chat_message("user"):
+            st.markdown(m.content)
+    elif isinstance(m, AIMessage):
+        with st.chat_message("assistant"):
+            st.markdown(m.content)
 
 # Input -> agent -> output
 if user_msg := st.chat_input("Ask something"):
-    st.session_state.history.append(("user", user_msg))
+    st.session_state.messages.append(HumanMessage(content=user_msg))
     with st.chat_message("user"):
         st.markdown(user_msg)
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            result = st.session_state.executor.invoke({"input": user_msg})
-        st.markdown(result["output"])
-    st.session_state.history.append(("assistant", result["output"]))
+            try:
+                # v1 agents expect the running conversation in `messages`
+                result = st.session_state.agent.invoke({"messages": st.session_state.messages})
+                # result["messages"] is the updated transcript including tool calls
+                new_messages = result["messages"]
+                # Append only the new AI turn(s); last item should be AIMessage
+                ai_out = next((m for m in reversed(new_messages) if isinstance(m, AIMessage)), None)
+                if ai_out is None:
+                    st.error("No assistant message returned.")
+                else:
+                    st.markdown(ai_out.content)
+                    st.session_state.messages = new_messages  # keep full state
+            except Exception as e:
+                st.error(f"Run failed: {e}")
