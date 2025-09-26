@@ -1,11 +1,12 @@
-version: "3.9"
 services:
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
-    ports: ["11434:11434"]
+    ports:
+      - "11434:11434"
     volumes:
-      - ollama_models:/root/.ollama
+      # bind-mount host directory into container
+      - ./data/.ollama:/root/.ollama
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
@@ -20,7 +21,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command: ["ollama pull ${MODEL:-llama3.2:latest}"]
     volumes:
-      - ollama_models:/root/.ollama
+      - ./data/.ollama:/root/.ollama
     restart: "no"
 
   app:
@@ -32,7 +33,5 @@ services:
     depends_on:
       ollama-pull:
         condition: service_completed_successfully
-    ports: ["8501:8501"]
-
-volumes:
-  ollama_models:
+    ports:
+      - "8501:8501"
